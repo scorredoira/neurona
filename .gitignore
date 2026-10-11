@@ -1,0 +1,7 @@
+# Downloaded datasets: get them with `go run ./download`
+data/
+
+# Build output of the training script (app.js is kept so index.html works without building)
+00-digits/mnist-train.js
+
+.DS_Store

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neurona</title>
+<style>
+    :root {
+        --bg: #f4f4f4; --panel: #fff; --line: #ddd; --text: #222; --muted: #777; --accent: #2e7d32;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 20px 24px; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+    header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+    h1 { margin: 0; font-size: 20px; }
+    h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    h3 { margin: 0 0 8px; font-size: 13px; }
+    .hint { margin: 0; color: var(--muted); font-size: 13px; }
+    kbd { font: 12px ui-monospace, monospace; background: #fff; border: 1px solid #ccc; border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; }
+    canvas { display: block; }
+    section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+    button { background: #f4f4f4; color: var(--text); border: 1px solid #ccc; border-radius: 6px; padding: 8px 12px; font: inherit; cursor: pointer; }
+    button:hover { background: #e8e8e8; }
+    button:disabled { opacity: .4; cursor: default; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    /* Top row: draw · predict · train */
+    .top { display: grid; grid-template-columns: auto auto minmax(260px, 1fr); gap: 16px; align-items: stretch; margin-bottom: 16px; }
+
+    #pad { border-radius: 6px; border: 1px solid var(--line); cursor: crosshair; touch-action: none; }
+    #labels { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 8px; }
+    #labels button { font-size: 18px; padding: 6px 0; display: flex; flex-direction: column; align-items: center; }
+    #labels small { font-size: 10px; color: var(--muted); }
+
+    .predict-head { display: flex; gap: 16px; align-items: center; margin-bottom: 12px; }
+    #preview { image-rendering: pixelated; width: 80px; height: 80px; border: 1px solid var(--line); }
+    .nets { display: flex; gap: 24px; }
+    .guess { font-size: 44px; font-weight: 700; line-height: 1; margin-bottom: 8px; }
+    .bar { display: grid; grid-template-columns: 12px 100px 34px; gap: 6px; align-items: center; margin: 2px 0; color: var(--muted); font-size: 13px; }
+    .bar.best { color: var(--text); font-weight: 600; }
+    .track { height: 9px; background: #eee; border-radius: 5px; overflow: hidden; }
+    .fill { height: 100%; background: #bbb; }
+    .bar.best .fill { background: var(--accent); }
+    .bar em { font-style: normal; text-align: right; font-size: 12px; }
+
+    .test { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .test label { font-weight: 600; cursor: pointer; }
+    #testScore { font-weight: 600; }
+
+    .actions { display: flex; flex-direction: column; gap: 8px; }
+    .actions .row button { flex: 1; }
+    #status { color: var(--muted); margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+    /* Bottom row: weights */
+    .weights-panel { display: flex; gap: 32px; flex-wrap: wrap; align-items: flex-start; }
+    .thumbs { display: grid; gap: 6px; }
+    #weights { grid-template-columns: repeat(5, auto); margin-bottom: 20px; }
+    #hidden { grid-template-columns: repeat(8, auto); }
+    .thumbs figure { margin: 0; text-align: center; color: var(--muted); font-size: 11px; cursor: pointer; }
+    .thumbs canvas { image-rendering: pixelated; border: 1px solid var(--line); border-radius: 3px; }
+    #weights canvas { width: 64px; height: 64px; }
+    #hidden canvas { width: 44px; height: 44px; }
+    .thumbs figure:hover canvas { border-color: #999; }
+    .thumbs figure.selected canvas { outline: 3px solid var(--accent); outline-offset: 1px; }
+    .thumbs figure.selected figcaption { color: var(--text); font-weight: 700; }
+
+    #selTitle { font-weight: 600; margin-bottom: 4px; }
+    #bias { font: 12px ui-monospace, monospace; margin-bottom: 8px; color: var(--muted); }
+    #numbers { border-collapse: collapse; font: 10px ui-monospace, monospace; }
+    #numbers td { width: 36px; height: 20px; text-align: right; padding: 0 3px; border: 1px solid #eee; }
+
+    @media (max-width: 1100px) {
+        .top { grid-template-columns: auto 1fr; }
+        .top > section:last-child { grid-column: 1 / -1; }
+    }
+    @media (max-width: 700px) {
+        body { padding: 16px; }
+        .top { grid-template-columns: 1fr; }
+        .nets { flex-direction: column; }
+        #numbers td { width: auto; }
+    }
+</style>
+</head>
+<body>
+    <header>
+        <h1>Neurona</h1>
+        <p class="hint">Draw a digit and press <kbd>0</kbd>–<kbd>9</kbd> to save it as an example · <kbd>Space</kbd> clears · with about 10 per digit, press Train</p>
+    </header>
+
+    <div class="top">
+        <section>
+            <h2>1 · Draw</h2>
+            <canvas id="pad" width="280" height="280"></canvas>
+            <div class="row" style="margin-top: 8px; justify-content: space-between">
+                <span class="hint">Save as:</span>
+                <span id="total" class="hint"></span>
+            </div>
+            <div id="labels"></div>
+            <div class="row" style="margin-top: 8px">
+                <button id="clear" style="flex: 1">Clear drawing</button>
+            </div>
+        </section>
+
+        <section>
+            <h2>2 · What the networks say</h2>
+            <div class="predict-head">
+                <canvas id="preview" width="16" height="16"></canvas>
+                <p class="hint">This is what they receive:<br>cropped, centered, 16×16.</p>
+            </div>
+            <div class="nets">
+                <div>
+                    <h3>1 layer</h3>
+                    <div id="guess1" class="guess">–</div>
+                    <div id="bars1"></div>
+                </div>
+                <div>
+                    <h3>With hidden layer</h3>
+                    <div id="guess2" class="guess">–</div>
+                    <div id="bars2"></div>
+                </div>
+            </div>
+            <div class="test">
+                <label><input type="checkbox" id="testMode"> Test mode</label>
+                <p class="hint" style="margin: 4px 0 8px">Pressing a digit does not save: it scores whether each network is right. Use new drawings.</p>
+                <div class="row">
+                    <span id="testScore"></span>
+                    <button id="testReset">Reset score</button>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>3 · Train</h2>
+            <div class="actions">
+                <button id="train" class="primary">Train both (50 epochs)</button>
+                <button id="loadMnist">Load networks trained on MNIST</button>
+                <div class="row">
+                    <button id="reset">Reset networks</button>
+                    <button id="wipe">Delete examples</button>
+                </div>
+            </div>
+            <div id="status">networks not trained (network 1 at zero, network 2 random)</div>
+        </section>
+    </div>
+
+    <section>
+        <h2>Weights · click any thumbnail to see its numbers</h2>
+        <div class="weights-panel">
+            <div>
+                <h3>1-layer network: template of each digit</h3>
+                <div id="weights" class="thumbs"></div>
+                <h3>Hidden-layer network: the 32 detectors</h3>
+                <div id="hidden" class="thumbs"></div>
+            </div>
+            <div>
+                <div id="selTitle"></div>
+                <div id="bias"></div>
+                <table id="numbers"></table>
+            </div>
+        </div>
+    </section>
+
+    <script src="mnist-weights.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
