@@ -24,7 +24,7 @@ type dataset struct {
 
 var datasets = []dataset{
 	{
-		name: "mnist", // handwritten digits (lessons 0 and 5-7)
+		name: "mnist", // handwritten digits (lessons 0, 5 and 7-8)
 		base: "https://storage.googleapis.com/cvdf-datasets/mnist/",
 		files: []string{
 			"train-images-idx3-ubyte.gz",
